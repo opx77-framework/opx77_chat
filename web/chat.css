@@ -1,0 +1,139 @@
+/* opx77_chat -- the box. Every value comes from open77-ui.css. */
+
+:root {
+  --op77-accent:      #fcee0a;
+  --op77-accent-ice:  #fff761;
+  --op77-accent-line: rgba(252, 238, 10, 0.45);
+  --op77-ink:         #0a0a05;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+}
+
+body {
+  font-family: var(--op77-font-body);
+  color: var(--op77-text);
+  /* The page takes keyboard focus while it is open, and nothing else: a pointer never
+     reaches this surface. */
+  user-select: none;
+}
+
+.chat {
+  position: fixed;
+  left: var(--op77-inset-x);
+  bottom: var(--op77-inset-y);
+  width: var(--chat-width, 620px);
+  max-width: calc(100vw - var(--op77-inset-x) * 2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--op77-space-1);
+}
+
+.chat.anchor-top-left { top: var(--op77-inset-y); bottom: auto; }
+
+/* ------------------------------------------------------------------- log */
+.log {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 34vh;
+  overflow: hidden;
+  /* newest at the bottom, and the overflow falls off the top */
+  justify-content: flex-end;
+}
+
+.line {
+  padding: 3px var(--op77-space-2);
+  background: var(--op77-panel);
+  border-left: var(--op77-rule) solid var(--op77-line-hud);
+  font: 400 var(--op77-fs-meta) / 1.35 var(--op77-font-body);
+  color: var(--op77-text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  transition: opacity var(--op77-dur) var(--op77-ease);
+}
+
+/* Faded while the box is closed: the log is history, not furniture. Restored the moment it
+   opens, which is the only time anybody is reading it. */
+.line.faded { opacity: 0; }
+body.open .line { opacity: 1; }
+
+.line .author {
+  font-weight: 700;
+  letter-spacing: var(--op77-track-label);
+  margin-right: var(--op77-space-2);
+}
+
+.line.info { border-left-color: var(--op77-accent); }
+.line.error { border-left-color: var(--op77-danger); color: var(--op77-danger); }
+.line.system { color: var(--op77-text-dim); font-style: italic; }
+
+/* ----------------------------------------------------------- suggestions */
+.suggestions {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  max-height: 30vh;
+  overflow: hidden;
+}
+
+.suggestion {
+  display: flex;
+  align-items: baseline;
+  gap: var(--op77-space-2);
+  padding: 3px var(--op77-space-2);
+  background: var(--op77-panel);
+  border-left: var(--op77-rule) solid var(--op77-line-hud);
+  font: 400 var(--op77-fs-meta) / 1.3 var(--op77-font-mono);
+  color: var(--op77-text-dim);
+}
+
+.suggestion.on {
+  background: var(--op77-accent);
+  border-left-color: var(--op77-accent-ice);
+  color: var(--op77-ink);
+}
+
+.suggestion .name { font-weight: 700; }
+.suggestion .help { color: var(--op77-text-faint); }
+.suggestion.on .help { color: var(--op77-ink); opacity: 0.72; }
+
+/* ----------------------------------------------------------------- entry */
+.entry {
+  display: flex;
+  align-items: center;
+  gap: var(--op77-space-2);
+  padding: 5px var(--op77-space-2);
+  background: var(--op77-panel-raised);
+  border-left: var(--op77-rule) solid var(--op77-accent);
+}
+
+.entry[hidden] { display: none; }
+
+.caret {
+  font: 700 var(--op77-fs-meta) / 1 var(--op77-font-mono);
+  color: var(--op77-accent);
+}
+
+/* The one focusable element on the surface, and only while the box is open. */
+#input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: none;
+  color: var(--op77-text);
+  font: 400 var(--op77-fs-meta) / 1.3 var(--op77-font-mono);
+  caret-color: var(--op77-accent);
+}

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OPX77 Chat</title>
+<link rel="stylesheet" href="open77-ui.css">
+<link rel="stylesheet" href="chat.css">
+</head>
+<body>
+
+<div class="chat" id="chat">
+  <ul class="log" id="log"></ul>
+
+  <!-- The suggestion list sits above the input, because the input is at the bottom and a
+       list that grows downward would leave the screen. -->
+  <ul class="suggestions" id="suggestions" hidden></ul>
+
+  <div class="entry" id="entry" hidden>
+    <span class="caret">&gt;</span>
+    <input id="input" type="text" autocomplete="off" spellcheck="false" maxlength="240">
+  </div>
+</div>
+
+<script src="chat.js"></script>
+</body>
+</html>
