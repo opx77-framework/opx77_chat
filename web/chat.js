@@ -1,13 +1,9 @@
-/* opx77_chat -- the page.
- *
- * It owns the input, the history and the completion list; Lua owns the transport. The only
- * outbound verbs are `chat:ready`, `chat:submit`, `chat:close` and a diagnostic channel.
- */
+/* opx77_chat -- the page: the input, the history and the completion list. */
 (function () {
   "use strict";
 
-  // CEF console output does not reach the client log, and the WebUI bridge swallows every
-  // exception thrown inside an `Open77.on` handler.
+  // CEF console output does not reach the client log and the bridge swallows handler throws,
+  // so every handler below reports through this channel instead.
   var reportCount = 0;
   var reporting = false;
 
@@ -71,6 +67,8 @@
       settings.maxLength = Math.round(maxLength);
       elements.input.setAttribute("maxlength", String(settings.maxLength));
     }
+    // every string on this page is rendered by Lua and arrives here already translated
+    elements.input.setAttribute("placeholder", text(payload.placeholder));
   }
 
   /* ---------------------------------------------------------------- lines */
@@ -115,8 +113,7 @@
     show();
   }
 
-  /* Every line visible for FADE_MS, then hidden again while the box is closed. The log is
-     history, not furniture. */
+  /* Every line visible for FADE_MS, then hidden again while the box is closed. */
   function show() {
     var lines = elements.log.children;
     for (var i = 0; i < lines.length; i += 1) lines[i].classList.remove("faded");
@@ -314,7 +311,7 @@
   });
 
   // `chat:ready` MUST be emitted whatever happened above: Lua drops every message until the
-  // page has reported ready, so a throw before this costs the box every line it is ever sent.
+  // page has reported ready.
   try { Open77.ready(); } catch (error) { report("ready: " + describe(error)); }
   Open77.emit("chat:ready", {});
 })();
