@@ -1,34 +1,31 @@
 --- opx77_chat -- the server half: it relays a message, and nothing else.
----
---- Commands do NOT come through here. The client sends `open77:command:execute` straight to
---- the host's authenticated dispatcher, which resolves `command.<name>` against the caller's
---- ACL before any Lua runs. A relay written here would be a second, weaker gate.
 
 local Config = OPX_CHAT_CONFIG
+local Text = OpxChat.Text
 
 --- player -> when they last said something, for the floor between two messages.
 local lastSaidMs = {}
 
+--- The scheduler clock in milliseconds; `monotonic` answers SECONDS. A non-finite reading is
+--- dropped rather than propagated: a NaN would expire nothing, an infinity everything.
 ---@return integer
+local lastMs = 0
 local function nowMs()
-  return math.floor(Open77.time.monotonic() * 1000)
+  local read, seconds = pcall(Open77.time.monotonic)
+  if read and type(seconds) == "number" and seconds == seconds and
+    seconds >= 0 and seconds < math.huge then
+    lastMs = math.floor(seconds * 1000)
+  end
+  return lastMs
 end
 
---- Truncate and strip control characters. Everything here came off the wire: a newline in a
---- message would forge a line in the box, and 48 KiB of them is every client's memory.
----@param value any
----@return string
 local function clean(value)
-  local text = tostring(value or ""):gsub("[%c]", " ")
-  if #text > Config.MAX_LENGTH then text = text:sub(1, Config.MAX_LENGTH) .. "..." end
-  return text
+  return Text.clean(value, Config.MAX_LENGTH, "...") or ""
 end
 
---- A player said something. Relayed to everyone, attributed to the connection that sent it --
---- never to a name in the payload.
+--- A player said something. Relayed to everyone, attributed to the connection that sent it.
 RegisterNetEvent("chat:submit", function(text)
-  -- `source` inside a net event handler is the authenticated connection (platform convention
-  -- 2: convert it). A client cannot speak as somebody else.
+  -- `source` is the authenticated connection, so a client cannot speak as somebody else.
   local player = tonumber(source) or 0
   if player <= 0 then return end
 
@@ -44,30 +41,22 @@ RegisterNetEvent("chat:submit", function(text)
   TriggerClientEvent("chat:addMessage", -1, {
     type = "chat",
     -- the display name is player-changeable, so it is a LABEL and never an identity
-    author = clean(name or ("player " .. player)),
+    author = clean(name or locale("chat.author.unknown", { id = player })),
     text = said,
   })
 end)
 
---- Both departure events, because the platform raises two and documents neither.
----@param playerId any
+--- Drop a departed player's rate-limit entry.
+---@param playerId number|string|nil
 local function forget(playerId)
   lastSaidMs[tonumber(playerId) or tonumber(source) or -1] = nil
 end
 
---- `onPlayerDisconnected` is the only departure event this platform raises. There used to
---- be a `playerDropped` handler beside it: that name occurs in the shipped server binary
---- only inside the platform's own embedded Lua bootstrap, which registers a handler that
---- nothing ever fires. A second handler here was dead code that made the cleanup look
---- doubly covered.
+-- the only departure event this platform raises
 AddEventHandler("onPlayerDisconnected", forget)
 
---- Warns once if the official package this one replaces is also running. `GetResourceState`
---- is the only way to ask: server resources cannot call each other. Deferred to a thread
---- rather than run at file scope, because at load time a conflicting resource listed after
---- this one in `resources.load` is still `discovered` and the warning would silently not
---- fire -- which would make it depend on load order, the one thing an operator did not
---- choose. The host answers lowercase; `:lower()` costs nothing and survives it changing.
+--- Warns once if the official package this one replaces is also running. Deferred to a thread so
+--- the check does not depend on load order.
 CreateThread(function()
   local official = tostring(GetResourceState("open77_chat") or ""):lower()
   if official ~= "running" and official ~= "starting" then return end

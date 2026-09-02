@@ -9,7 +9,7 @@
 
 The chat box for **Opx77**, and the path a typed command takes to the server.
 
-Without it nothing typed in game reaches the server: slash commands travel on the host's authenticated dispatcher, and this is the resource that tokenises a line and hands it over.
+Without it nothing typed in game reaches the server: slash commands travel on the host's authenticated dispatcher, and this is the resource that tokenises a line and hands it over. A typed command is limited to 32 arguments; quotes and backslash escapes are honoured when the line is split.
 
 ## Features
 
@@ -18,6 +18,7 @@ Without it nothing typed in game reaches the server: slash commands travel on th
 - Command completion from the suggestions every resource publishes on `chat:ready`
 - Arrow-key history of what you typed, and Tab to complete
 - The log fades while the box is closed and comes back when it opens
+- Every line it writes itself is rendered from `locales/`, English and French shipped
 
 ## Commands
 
@@ -25,7 +26,7 @@ None of its own. It carries everybody else's.
 
 ## Exports
 
-Client-side, and deliberately the six names the platform documents on its own `open77_chat` package, with the same arguments — code written against the documented chat surface works here without a change.
+Client-side only — the server runtime installs no exports. These are the six names the platform documents on its own `open77_chat` package, with the same arguments. A server resource that wants a line in one player's box sends them `chat:addMessage` instead.
 
 | Export | Does |
 |---|---|
@@ -36,12 +37,9 @@ Client-side, and deliberately the six names the platform documents on its own `o
 | `setEnabled(enabled)` | turn the box off or back on, for everyone, not just the caller |
 | `isEnabled()` | whether it is on |
 
-Every call answers `{ ok = boolean }`, with an `error` code when `ok` is false: `export_call_required`, `no_surface`, `page_not_ready`, `invalid_message`, `invalid_command`. The caller is read from the host, never from an argument.
+Every call answers `{ ok = boolean }`, with an `error` code when `ok` is false: `export_call_required`, `no_surface`, `page_not_ready`, `invalid_message`, `invalid_command`. The caller is read from the host, never from an argument. `types.lua` carries the answer shapes and the full code list.
 
-Like every export on this platform the call is asynchronous, so it answers a promise and has
-to be awaited inside a `CreateThread`. Failure has three levels and they mean different things:
-the call was never dispatched, it was dispatched and could not resolve, or it resolved into a
-refusal — only the last one is authoritative.
+Like every export on this platform the call is asynchronous: it answers a promise that has to be awaited inside a `CreateThread`, and only a resolved `{ ok = false }` is a refusal by this resource.
 
 ```lua
 CreateThread(function()
@@ -56,9 +54,39 @@ CreateThread(function()
 end)
 ```
 
+## Events
+
+Net events any resource may send. They are how a **server** resource reaches a player's box, since the server runtime installs no exports. Their payloads are in `types.lua`.
+
+| Event | Carries |
+|---|---|
+| `chat:addMessage` | one `ChatMessage`, or a bare string taken as its text |
+| `chat:addSuggestion` | `command`, `help`, `parameters` as three positional arguments |
+| `chat:addSuggestions` | one list of `ChatSuggestion`, for a whole resource at once |
+| `chat:removeSuggestion` | `command` |
+| `chat:clearSuggestions` | nothing |
+| `chat:clear` | nothing |
+| `chat:setEnabled` | `enabled`; anything but `false` enables |
+
+This resource sends `chat:ready` to the server when the page comes up and again on every open. A resource that publishes suggestions answers that event rather than sending them at boot, where they land nowhere; rate-limit the answer, because a client may send it freely.
+
 ## Configuration
 
-`config.lua`. Where the box sits, how wide it is, how many lines it keeps, how long they stay visible, and the floor between two messages from one player.
+`config.lua`. Where the box sits, how wide it is, how many lines it keeps, how long they stay visible, the floor between two messages from one player, and `LOCALE`. `MAX_LENGTH` is counted in characters, not bytes, on both sides.
+
+Chat text arrives from clients and is never trusted: the server strips control characters and truncates to `MAX_LENGTH` before relaying, the author is taken from the authenticated connection rather than from the payload, and the page renders every author and message with `textContent`, never `innerHTML`. Keep all three if you touch that path.
+
+Do not run this alongside the platform's own `open77_chat` package: both draw a box, both answer `chat:addMessage` and both take focus on the open key, so every message renders twice. The server half warns when it sees the other one running.
+
+`docs/unknowns.md` records what this resource has to assume about the platform and cannot verify — read it before changing how a command result is filtered.
+
+## Locales
+
+`LOCALE` in `config.lua` picks the catalogue player-facing text is read from — `"en"` or `"fr"` as shipped. Each resource carries its own catalogue, so this is set here as well as in `opx77_core`.
+
+To add a language, copy `locales/en.lua` to `locales/<code>.lua`, change the code in the `register` call, translate the values, add a `shared_script "locales/<code>.lua"` line to `open77.lua` beside the others, and set `LOCALE` to it. A key missing from a catalogue falls back to English, then to the key itself.
+
+The page holds no translations of its own: every string it draws arrives already rendered in the `chat:config` payload. Log lines stay English.
 
 ## Community & Support
 

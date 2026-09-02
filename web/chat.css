@@ -19,8 +19,7 @@ html, body {
 body {
   font-family: var(--op77-font-body);
   color: var(--op77-text);
-  /* The page takes keyboard focus while it is open, and nothing else: a pointer never
-     reaches this surface. */
+  /* the surface takes keyboard focus only; a pointer never reaches it */
   user-select: none;
 }
 
@@ -62,8 +61,7 @@ body {
   transition: opacity var(--op77-dur) var(--op77-ease);
 }
 
-/* Faded while the box is closed: the log is history, not furniture. Restored the moment it
-   opens, which is the only time anybody is reading it. */
+/* Faded while the box is closed, restored the moment it opens. */
 .line.faded { opacity: 0; }
 body.open .line { opacity: 1; }
 
@@ -137,3 +135,6 @@ body.open .line { opacity: 1; }
   font: 400 var(--op77-fs-meta) / 1.3 var(--op77-font-mono);
   caret-color: var(--op77-accent);
 }
+
+/* The hint text is sent by Lua from the configured locale, never written into the page. */
+#input::placeholder { color: var(--op77-text-faint); opacity: 1; }

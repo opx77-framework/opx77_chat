@@ -10,6 +10,7 @@
   "diagnostics.globals": [
     "OpxChat",
     "OPX_CHAT_CONFIG",
+    "locale",
     "Open77",
     "WebUI",
     "CreateThread",
