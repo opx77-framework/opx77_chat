@@ -37,7 +37,7 @@ Client-side only — the server runtime installs no exports. These are the six n
 | `setEnabled(enabled)` | turn the box off or back on, for everyone, not just the caller |
 | `isEnabled()` | whether it is on |
 
-Every call answers `{ ok = boolean }`, with an `error` code when `ok` is false: `export_call_required`, `no_surface`, `page_not_ready`, `invalid_message`, `invalid_command`. The caller is read from the host, never from an argument.
+Every call answers `{ ok = boolean }`, with an `error` code when `ok` is false: `export_call_required`, `no_surface`, `page_not_ready`, `invalid_message`, `invalid_command`. The caller is read from the host, never from an argument. `types.lua` carries the answer shapes and the full code list.
 
 Like every export on this platform the call is asynchronous: it answers a promise that has to be awaited inside a `CreateThread`, and only a resolved `{ ok = false }` is a refusal by this resource.
 
@@ -54,15 +54,39 @@ CreateThread(function()
 end)
 ```
 
+## Events
+
+Net events any resource may send. They are how a **server** resource reaches a player's box, since the server runtime installs no exports. Their payloads are in `types.lua`.
+
+| Event | Carries |
+|---|---|
+| `chat:addMessage` | one `ChatMessage`, or a bare string taken as its text |
+| `chat:addSuggestion` | `command`, `help`, `parameters` as three positional arguments |
+| `chat:addSuggestions` | one list of `ChatSuggestion`, for a whole resource at once |
+| `chat:removeSuggestion` | `command` |
+| `chat:clearSuggestions` | nothing |
+| `chat:clear` | nothing |
+| `chat:setEnabled` | `enabled`; anything but `false` enables |
+
+This resource sends `chat:ready` to the server when the page comes up and again on every open. A resource that publishes suggestions answers that event rather than sending them at boot, where they land nowhere; rate-limit the answer, because a client may send it freely.
+
 ## Configuration
 
-`config.lua`. Where the box sits, how wide it is, how many lines it keeps, how long they stay visible, the floor between two messages from one player, and `LOCALE` — the language every line this resource writes is rendered in.
-
-`LOCALE` is this resource's own setting, separate from the core's: a satellite's server half cannot ask the core for a translation, so each one carries its catalogue. `locales/en.lua` and `locales/fr.lua` ship; add a language by copying one to `locales/<code>.lua`, translating the right-hand side, adding a `shared_script` line for it in `open77.lua` beside the others, and setting `LOCALE` to that code. Every catalogue carries the same keys — a missing one falls back to `en`, then to the key itself. The page holds no translations of its own: the strings it draws arrive already rendered in the `chat:config` payload.
+`config.lua`. Where the box sits, how wide it is, how many lines it keeps, how long they stay visible, the floor between two messages from one player, and `LOCALE`. `MAX_LENGTH` is counted in characters, not bytes, on both sides.
 
 Chat text arrives from clients and is never trusted: the server strips control characters and truncates to `MAX_LENGTH` before relaying, the author is taken from the authenticated connection rather than from the payload, and the page renders every author and message with `textContent`, never `innerHTML`. Keep all three if you touch that path.
 
 Do not run this alongside the platform's own `open77_chat` package: both draw a box, both answer `chat:addMessage` and both take focus on the open key, so every message renders twice. The server half warns when it sees the other one running.
+
+`docs/unknowns.md` records what this resource has to assume about the platform and cannot verify — read it before changing how a command result is filtered.
+
+## Locales
+
+`LOCALE` in `config.lua` picks the catalogue player-facing text is read from — `"en"` or `"fr"` as shipped. Each resource carries its own catalogue, so this is set here as well as in `opx77_core`.
+
+To add a language, copy `locales/en.lua` to `locales/<code>.lua`, change the code in the `register` call, translate the values, add a `shared_script "locales/<code>.lua"` line to `open77.lua` beside the others, and set `LOCALE` to it. A key missing from a catalogue falls back to English, then to the key itself.
+
+The page holds no translations of its own: every string it draws arrives already rendered in the `chat:config` payload. Log lines stay English.
 
 ## Community & Support
 

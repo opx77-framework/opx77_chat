@@ -1,9 +1,7 @@
 --- opx77_chat -- the server half: it relays a message, and nothing else.
----
---- Commands do not come through here: the client sends `open77:command:execute` straight to the
---- host's ACL-checked dispatcher, and a relay written here would be a second, weaker gate.
 
 local Config = OPX_CHAT_CONFIG
+local Text = OpxChat.Text
 
 --- player -> when they last said something, for the floor between two messages.
 local lastSaidMs = {}
@@ -13,21 +11,8 @@ local function nowMs()
   return math.floor(Open77.time.monotonic() * 1000)
 end
 
---- Sanitise one line off the wire: control characters out, length capped. A newline would forge
---- a line in every client's box, and an uncapped one is every client's memory.
----@param value any
----@return string
 local function clean(value)
-  local text = tostring(value or ""):gsub("[%c]", " ")
-  if #text > Config.MAX_LENGTH then
-    local cut = Config.MAX_LENGTH
-    -- MAX_LENGTH counts bytes: back a cut that landed inside a UTF-8 sequence off the sequence
-    while cut > 0 and text:byte(cut + 1) >= 0x80 and text:byte(cut + 1) < 0xC0 do
-      cut = cut - 1
-    end
-    text = text:sub(1, cut) .. "..."
-  end
-  return text
+  return Text.clean(value, Config.MAX_LENGTH, "...") or ""
 end
 
 --- A player said something. Relayed to everyone, attributed to the connection that sent it.
@@ -54,11 +39,12 @@ RegisterNetEvent("chat:submit", function(text)
 end)
 
 --- Drop a departed player's rate-limit entry.
----@param playerId any
+---@param playerId number|string|nil
 local function forget(playerId)
   lastSaidMs[tonumber(playerId) or tonumber(source) or -1] = nil
 end
 
+-- the only departure event this platform raises
 AddEventHandler("onPlayerDisconnected", forget)
 
 --- Warns once if the official package this one replaces is also running. Deferred to a thread so

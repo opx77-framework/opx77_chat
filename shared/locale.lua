@@ -1,5 +1,5 @@
---- Player-facing text. Server logs stay in English whatever the configured locale is.
---- Publishes the global `locale(key, params)` as well as `OpxChat.Locale`.
+--- Player-facing text. Log lines and console output stay in English whatever the
+--- configured locale is. Publishes the global `locale(key, params)` and `OpxChat.Locale`.
 
 OpxChat = OpxChat or {}
 

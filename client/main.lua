@@ -9,10 +9,14 @@ local pageReady = false
 local opened = false
 local enabled = true
 
+--- The fragment of the dispatcher's queue acknowledgement, verbatim from the platform:
+--- `command '<name>' queued by resource <resource>`. Not a contract -- docs/unknowns.md.
+local QUEUE_ACK = "' queued by resource "
+
 --- Split a typed command into the tokens the server's dispatcher expects, one per argument,
 --- honouring quotes and backslash escapes.
 ---@param text string  with the leading slash
----@return table|nil tokens  one string per argument, at most 32; nil when the line is unusable
+---@return CommandTokens|nil tokens  nil when the line is unusable
 ---@return string|nil reason  a player-facing message when tokens is nil
 local function commandTokens(text)
   local source = tostring(text or ""):sub(2)
@@ -56,7 +60,7 @@ local function send(channel, payload)
 end
 
 --- Put one line in this player's box.
----@param message table|string
+---@param message ChatMessage|string
 ---@return boolean
 local function addMessage(message)
   if type(message) == "string" then message = { text = message } end
@@ -108,7 +112,7 @@ end
 --- Add or replace one completion entry.
 ---@param command any  with or without the leading slash; the page adds it
 ---@param help any
----@param parameters any
+---@param parameters ChatSuggestionParameter[]|nil
 local function addSuggestion(command, help, parameters)
   send("chat:addSuggestion", {
     command = tostring(command or ""),
@@ -157,8 +161,9 @@ RegisterNetEvent("chat:setEnabled", setEnabled)
 --- The dispatcher's answer to a command this player typed.
 RegisterNetEvent("open77:command:result", function(raw, accepted, message)
   raw, message = tostring(raw or ""), tostring(message or "")
-  -- The dispatcher acknowledges queueing before it sends the useful result; only show the latter.
-  if accepted and message:match("^queued by ") then return end
+  -- The dispatcher acknowledges queueing before it sends the useful result; only show the
+  -- latter. Matched on the platform's own English wording -- see docs/unknowns.md.
+  if accepted and message:find(QUEUE_ACK, 1, true) ~= nil then return end
   addMessage({
     type = accepted and "info" or "error",
     author = locale("chat.author.command"),

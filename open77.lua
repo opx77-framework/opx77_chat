@@ -1,28 +1,26 @@
 resource "opx77_chat"
-version "0.1.0"
+version "0.2.0"
 open77_version ">=0.0.1"
 auto_start true
 
--- "reconnect" is the policy for any resource owning a WebUI surface; "local" is for rules only.
+-- "reconnect" is the policy for a resource that owns a CEF surface.
 reload_policy "reconnect"
 
--- Configuration first: shared/locale.lua reads LOCALE out of it at load.
-client_script "config.lua"
-server_script "config.lua"
+shared_script "config.lua" -- both halves read it: the box, the caps, and LOCALE
+shared_script "shared/text.lua"
+shared_script "shared/locale.lua" -- after config.lua: LOCALE is read at load
+shared_script "locales/en.lua" -- registered right after the catalogue, so no file
+shared_script "locales/fr.lua" -- below calls locale() against an empty one
 
-shared_script "shared/locale.lua"
-shared_script "locales/en.lua" -- registered right after the catalogue, so no file below calls
-shared_script "locales/fr.lua" -- locale() against an empty one
+server_script "server/main.lua"
 
 client_script "client/main.lua"
 client_script "client/exports.lua" -- last: publishing the surface claims it exists
 
-server_script "server/main.lua"
-
 web_ui_page "web/index.html"
-web_ui_auto_create false
--- Script patterns must stay one file per line: a glob such as `client/**/*.lua` matches nothing
--- against a flat directory and an empty pattern refuses the whole session's resource set.
+web_ui_auto_create false -- created in client/main.lua, so a failure is one logged line
+-- Every script is listed on its own line: a glob that matches no script refuses the whole
+-- session's resource set with `script_pattern_empty:...`.
 web_files { "web/**" }
 
 permissions {
