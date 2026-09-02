@@ -77,13 +77,21 @@ end
 
 local function openChat()
   -- Refusals are printed, never silent: "the key does nothing" is the report this file has to
-  -- be able to answer, and these are three different faults.
+  -- be able to answer, and these are four different faults.
   if page == nil then
     Open77.log.warn("open refused: the WebUI surface was never created")
     return
   end
   if not enabled then
     Open77.log.warn("open refused: the chat is disabled by the server")
+    return
+  end
+  -- The fourth fault, and the one with no way out: taking keyboard focus before the page has
+  -- reported ready captures the keyboard with the entry line still hidden and the only Escape
+  -- handler bound to an input nobody can see. `opened` is left false on purpose, so the next
+  -- press succeeds the moment web/chat.js raises `chat:ready`.
+  if not pageReady then
+    Open77.log.warn("open refused: the page has not reported ready")
     return
   end
   if opened then return end
@@ -103,15 +111,42 @@ end
 -- What the server and other resources send
 -- ---------------------------------------------------------------------------
 
-RegisterNetEvent("chat:addMessage", addMessage)
-
-RegisterNetEvent("chat:addSuggestion", function(command, help, parameters)
+--- Add or replace one completion entry. The page keys them by name and prefixes the slash
+--- itself, so a caller may pass either form.
+---@param command any
+---@param help any
+---@param parameters any
+local function addSuggestion(command, help, parameters)
   send("chat:addSuggestion", {
     command = tostring(command or ""),
     help = tostring(help or ""),
     parameters = type(parameters) == "table" and parameters or {},
   })
-end)
+end
+
+---@param command any
+local function removeSuggestion(command)
+  send("chat:removeSuggestion", { command = tostring(command or "") })
+end
+
+local function clearMessages()
+  send("chat:clear", {})
+end
+
+--- One flag for the whole box, not one per caller. That is the official package's rule and it
+--- is the right one: a cutscene or a character creator that turns the chat off means to turn
+--- it off, not to stop hearing from itself.
+---@param value any  anything but `false` enables
+---@return boolean enabled  the state it now holds
+local function setEnabled(value)
+  enabled = value ~= false
+  if not enabled then closeChat() end
+  send("chat:state", { enabled = enabled })
+  return enabled
+end
+
+RegisterNetEvent("chat:addMessage", addMessage)
+RegisterNetEvent("chat:addSuggestion", addSuggestion)
 
 RegisterNetEvent("chat:addSuggestions", function(suggestions)
   send("chat:addSuggestions", {
@@ -119,18 +154,12 @@ RegisterNetEvent("chat:addSuggestions", function(suggestions)
   })
 end)
 
-RegisterNetEvent("chat:removeSuggestion", function(command)
-  send("chat:removeSuggestion", { command = tostring(command or "") })
-end)
+RegisterNetEvent("chat:removeSuggestion", removeSuggestion)
 
 RegisterNetEvent("chat:clearSuggestions", function() send("chat:clearSuggestions", {}) end)
-RegisterNetEvent("chat:clear", function() send("chat:clear", {}) end)
+RegisterNetEvent("chat:clear", clearMessages)
 
-RegisterNetEvent("chat:setEnabled", function(value)
-  enabled = value ~= false
-  if not enabled then closeChat() end
-  send("chat:state", { enabled = enabled })
-end)
+RegisterNetEvent("chat:setEnabled", setEnabled)
 
 --- The dispatcher's answer to a command this player typed.
 RegisterNetEvent("open77:command:result", function(raw, accepted, message)
@@ -152,6 +181,27 @@ AddEventHandler("chat:open", openChat)
 AddEventHandler("chat:close", closeChat)
 
 -- ---------------------------------------------------------------------------
+-- What the public surface is allowed to reach
+-- ---------------------------------------------------------------------------
+
+--- client/exports.lua is a separate file, so what it needs has to leave this one. Exactly the
+--- six behaviours the platform documents on its own `open77_chat` package leave it, and
+--- nothing about the key, the focus or the command parser does: those are this file's alone.
+OpxChat.runtime = {
+  addMessage = addMessage,
+  clear = clearMessages,
+  addSuggestion = addSuggestion,
+  removeSuggestion = removeSuggestion,
+  setEnabled = setEnabled,
+  isEnabled = function() return enabled end,
+  --- Whether a call would actually land on the page. `send` is silent when it would not, and
+  --- an export that answered `ok` for a message nobody will ever see would be lying.
+  ---@return boolean surfaceExists
+  ---@return boolean ready
+  surface = function() return page ~= nil, pageReady end,
+}
+
+-- ---------------------------------------------------------------------------
 -- Lifecycle
 -- ---------------------------------------------------------------------------
 
@@ -166,8 +216,25 @@ AddEventHandler("onClientResourceStart", function(name)
     width = 1920,
     height = 1080,
     fps = 60,
-    -- above opx77_hud (705) and opx77_menu: a chat that opens under a menu is a chat nobody
-    -- can read what they are typing in
+    -- 700 draws BELOW opx77_hud (705), the toasts (720) and opx77_menu (725). That is the
+    -- platform's own number for its chat and the ordering opx77_menu's comment assumes.
+    --
+    -- This used to be justified on the premise that a menu and an open input line cannot be
+    -- on screen together, because the menu would own focus and the host would not raise the
+    -- open key underneath it. opx77_menu does not work that way: it creates its surface on
+    -- the "hud" layer, which is never focused, reads the keyboard by polling
+    -- `Open77.input.isDown`, and its manifest asks for no `webui` permission at all. It takes
+    -- no focus, so it suppresses no key of ours. The dependency runs the other way -- this
+    -- box is the surface that takes focus while its composer is open, and opx77_menu's
+    -- `Input.captured()` sees that and stands down rather than eating the arrow keys the
+    -- player is typing in here.
+    --
+    -- So the two CAN be up at once, and the ordering is a decision rather than a
+    -- technicality: a menu is being driven and has to stay readable, a chat log is passive
+    -- and can be covered. It only shows when both are anchored to the same corner, which
+    -- `OPX_CHAT_CONFIG.ANCHOR` "top-left" and `OPX_MENU_CONFIG.ANCHOR` "top-left" allow but
+    -- neither picks by default. Change it here in WebUI.create if you re-theme these
+    -- surfaces, never in CSS, which cannot reach across them.
     zIndex = 700,
     transparent = true,
     -- created visible: a surface created hidden never uploads a frame once shown
@@ -232,5 +299,11 @@ end)
 
 AddEventHandler("onClientResourceStop", function(name)
   if name ~= GetCurrentResourceName() then return end
+  -- Hand the keyboard back before the handle goes. The platform destroys page handles with
+  -- the resource generation and that probably releases focus with them, but nothing shipped
+  -- here says so, and a stop that leaves focus held leaves the player unable to move. This is
+  -- a no-op under the reading where teardown already does it. `closeChat` guards `page == nil`
+  -- and `not opened` itself, so it is safe to call unconditionally.
+  closeChat()
   page, pageReady, opened = nil, false, false
 end)

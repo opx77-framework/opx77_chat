@@ -55,7 +55,26 @@ local function forget(playerId)
   lastSaidMs[tonumber(playerId) or tonumber(source) or -1] = nil
 end
 
+--- `onPlayerDisconnected` is the only departure event this platform raises. There used to
+--- be a `playerDropped` handler beside it: that name occurs in the shipped server binary
+--- only inside the platform's own embedded Lua bootstrap, which registers a handler that
+--- nothing ever fires. A second handler here was dead code that made the cleanup look
+--- doubly covered.
 AddEventHandler("onPlayerDisconnected", forget)
-AddEventHandler("playerDropped", forget)
+
+--- Warns once if the official package this one replaces is also running. `GetResourceState`
+--- is the only way to ask: server resources cannot call each other. Deferred to a thread
+--- rather than run at file scope, because at load time a conflicting resource listed after
+--- this one in `resources.load` is still `discovered` and the warning would silently not
+--- fire -- which would make it depend on load order, the one thing an operator did not
+--- choose. The host answers lowercase; `:lower()` costs nothing and survives it changing.
+CreateThread(function()
+  local official = tostring(GetResourceState("open77_chat") or ""):lower()
+  if official ~= "running" and official ~= "starting" then return end
+  Open77.log.warn("open77_chat is running and is the package this one replaces")
+  Open77.log.warn("  both draw their own chat box, both answer chat:addMessage and both take")
+  Open77.log.warn("  focus on the open key, so every message is rendered twice. Drop one from")
+  Open77.log.warn("  resources.load in server.jsonc.")
+end)
 
 Open77.log.info("ready")

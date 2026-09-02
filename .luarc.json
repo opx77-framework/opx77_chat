@@ -16,11 +16,15 @@
     "Wait",
     "AddEventHandler",
     "TriggerEvent",
+    "RegisterNetEvent",
+    "TriggerClientEvent",
+    "TriggerServerEvent",
     "GetCurrentResourceName",
     "GetResourceState",
     "GetInvokingResource",
     "GetInvokingResourceGeneration",
     "exports",
+    "source",
     "print"
   ],
   "diagnostics.disable": [
