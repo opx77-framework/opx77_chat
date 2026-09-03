@@ -13,40 +13,48 @@ local enabled = true
 --- `command '<name>' queued by resource <resource>`. Not a contract -- docs/unknowns.md.
 local QUEUE_ACK = "' queued by resource "
 
+--- The dispatcher takes at most this many arguments, the command name included.
+local MAX_ARGUMENTS = 32
+
 --- Split a typed command into the tokens the server's dispatcher expects, one per argument,
 --- honouring quotes and backslash escapes.
 ---@param text string  with the leading slash
 ---@return CommandTokens|nil tokens  nil when the line is unusable
 ---@return string|nil reason  a player-facing message when tokens is nil
 local function commandTokens(text)
-  local source = tostring(text or ""):sub(2)
-  local tokens, token, quote, escaped, started = {}, "", nil, false, false
-  for index = 1, #source do
-    local character = source:sub(index, index)
+  local line = tostring(text or ""):sub(2)
+  -- one table per token, joined once: appending to a string per character is quadratic
+  local tokens, buffer, quote, escaped, started = {}, {}, nil, false, false
+  for index = 1, #line do
+    local character = line:sub(index, index)
     if escaped then
-      token, escaped, started = token .. character, false, true
+      buffer[#buffer + 1], escaped, started = character, false, true
     elseif character == "\\" then
       escaped, started = true, true
     elseif quote ~= nil then
-      if character == quote then quote = nil else token = token .. character end
+      if character == quote then quote = nil else buffer[#buffer + 1] = character end
       started = true
     elseif character == "\"" or character == "'" then
       quote, started = character, true
     elseif character:match("%s") then
       if started then
-        tokens[#tokens + 1] = token
-        token, started = "", false
-        if #tokens > 32 then return nil, locale("chat.tooManyArgs", { max = 32 }) end
+        tokens[#tokens + 1] = table.concat(buffer)
+        buffer, started = {}, false
+        if #tokens > MAX_ARGUMENTS then
+          return nil, locale("chat.tooManyArgs", { max = MAX_ARGUMENTS })
+        end
       end
     else
-      token, started = token .. character, true
+      buffer[#buffer + 1], started = character, true
     end
   end
   if escaped then return nil, locale("chat.escapeAtEnd") end
   if quote ~= nil then return nil, locale("chat.unterminatedQuote") end
   if started then
-    tokens[#tokens + 1] = token
-    if #tokens > 32 then return nil, locale("chat.tooManyArgs", { max = 32 }) end
+    tokens[#tokens + 1] = table.concat(buffer)
+    if #tokens > MAX_ARGUMENTS then
+      return nil, locale("chat.tooManyArgs", { max = MAX_ARGUMENTS })
+    end
   end
   if #tokens == 0 or tokens[1] == "" then return nil, locale("chat.commandExpected") end
   return tokens
@@ -184,7 +192,7 @@ AddEventHandler("chat:close", closeChat)
 --- What client/exports.lua may call. The key, the focus and the command parser stay private.
 OpxChat.runtime = {
   addMessage = addMessage,
-  clear = clearMessages,
+  clearMessages = clearMessages,
   addSuggestion = addSuggestion,
   removeSuggestion = removeSuggestion,
   setEnabled = setEnabled,

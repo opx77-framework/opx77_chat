@@ -26,12 +26,14 @@ None of its own. It carries everybody else's.
 
 ## Exports
 
-Client-side only — the server runtime installs no exports. These are the six names the platform documents on its own `open77_chat` package, with the same arguments. A server resource that wants a line in one player's box sends them `chat:addMessage` instead.
+Client-side only — the server runtime installs no exports. A server resource that wants a line in one player's box sends them `chat:addMessage` instead.
+
+> `clear()` was renamed to `clearMessages()` in 0.3.0: it empties the message log and not the suggestions, and its neighbours all name what they act on. The platform's own `open77_chat` package still spells it `clear`, so a caller written against that package needs the one-word change.
 
 | Export | Does |
 |---|---|
 | `addMessage(message)` | put one line in this player's box; a bare string is taken as its text |
-| `clear()` | empty the visible log, leaving the suggestions alone |
+| `clearMessages()` | empty the visible log, leaving the suggestions alone |
 | `addSuggestion(command, help, parameters?)` | add or replace one completion entry |
 | `removeSuggestion(command)` | take one completion entry back down |
 | `setEnabled(enabled)` | turn the box off or back on, for everyone, not just the caller |

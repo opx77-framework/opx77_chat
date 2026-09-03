@@ -23,21 +23,33 @@ local function clean(value)
   return Text.clean(value, Config.MAX_LENGTH, "...") or ""
 end
 
+--- The connection's display name, or nil when the host cannot answer with one.
+---@param player integer
+---@return string|nil
+local function displayName(player)
+  local players = Open77.players
+  if type(players) ~= "table" or type(players.name) ~= "function" then return nil end
+  local read, name = pcall(players.name, player)
+  if not read or type(name) ~= "string" or name == "" then return nil end
+  return name
+end
+
 --- A player said something. Relayed to everyone, attributed to the connection that sent it.
 RegisterNetEvent("chat:submit", function(text)
   -- `source` is the authenticated connection, so a client cannot speak as somebody else.
   local player = tonumber(source) or 0
   if player <= 0 then return end
 
-  local said = clean(text)
-  if said:match("^%s*$") then return end
-
+  -- the floor is checked before the text is cleaned: a flood must not buy a scan per packet
   local at = nowMs()
   local previous = lastSaidMs[player]
   if previous ~= nil and at - previous < Config.RATE_MS then return end
+
+  local said = clean(text)
+  if said:match("^%s*$") then return end
   lastSaidMs[player] = at
 
-  local name = Open77.players.name and Open77.players.name(player) or nil
+  local name = displayName(player)
   TriggerClientEvent("chat:addMessage", -1, {
     type = "chat",
     -- the display name is player-changeable, so it is a LABEL and never an identity
