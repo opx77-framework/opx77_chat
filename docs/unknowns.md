@@ -65,3 +65,10 @@ the operator configured. The page being stricter than the server is the safe dir
 
 Never make the server count bytes to "match": that was the original bug, and it cut a
 multi-byte character in half.
+
+There is one byte number in the path and it is not a second cap. `Text.span` stops scanning at
+`MAX_LENGTH * 4`, the widest a character can be, because a byte in `0x80..0xBF` starts no
+character and a line made only of those would otherwise never reach the character cap at all —
+an unbounded string relayed to every client under a 240-character limit. Valid UTF-8 is
+unaffected: the first `MAX_LENGTH` characters always end at or before that byte. Do not remove
+the ceiling, and do not lower it to `MAX_LENGTH`.

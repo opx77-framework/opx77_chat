@@ -1,5 +1,5 @@
---- opx77_chat -- the public surface: the six exports the platform documents for a chat
---- resource. Every call answers a table carrying `ok`; `error` is a code from types.lua.
+--- opx77_chat -- the public surface: six client exports. Every call answers a table carrying
+--- `ok`; `error` is a code from types.lua.
 
 local Runtime = OpxChat.runtime
 
@@ -53,10 +53,10 @@ end)
 
 --- Empty the visible log, leaving the suggestions alone.
 ---@return ChatResponse
-exports("clear", function()
+exports("clearMessages", function()
   local refused = nobody() or noPage()
   if refused then return refused end
-  Runtime.clear()
+  Runtime.clearMessages()
   return response(true, {})
 end)
 
