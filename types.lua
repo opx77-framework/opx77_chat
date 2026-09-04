@@ -3,6 +3,15 @@
 
 --- Why an export refused. Codes are a branching surface, never player-facing text: a caller
 --- that wants to show one renders it through its own catalogue.
+--- What the host vouches for about an admitted player, as returned by
+--- `Open77.players.identity`. Reading it needs no permission.
+---@class PlayerIdentity
+---@field userId string      the Master account id, stable across renames
+---@field name string        the display name the client presents: a label, never a key
+---@field publicKey string   the identity public key, base64
+---@field fingerprint string `sha256:<hex>` of the public key
+---@field joinedAt string    when they were admitted, ISO 8601 UTC
+
 ---@alias ChatError
 ---| "export_call_required" no invoking resource, so the call came from inside
 ---| "no_surface"           the WebUI surface was never created
